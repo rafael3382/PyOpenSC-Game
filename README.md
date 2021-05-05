@@ -1,7 +1,7 @@
 # PyOpenSC-Game
 This is a project that tries to look like Survivalcraft but open source, We don't want to have a problem because it looks like piracy, so we are going to make an anti-piracy layer
 
-#the focuses are:
+# the focuses are:
 be realistic but still with blocks,
 In the future an electric version,
 Upgrade faster than survivalcraft, 
