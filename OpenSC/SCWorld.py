@@ -22,8 +22,8 @@ if __name__ == "__main__":
     print("scworld2oscworld Converter Version 1.0")
     print("OpenSC Project")
     if len(sys.argv) <= 1:
-        
         print(f"python {os.path.basename(__file__)} InputFile.scworld OutputFile.oscworld\nOr python {os.path.basename(__file__)} InputFileName.scworld\nOr python {os.path.basename(__file__)} InputFileName.scworld -o OutputFileName.scworld")
+        exit()
     InputFile = ""
     OutputFile = ""
     Next_o = False
