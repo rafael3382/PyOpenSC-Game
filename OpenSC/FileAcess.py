@@ -19,5 +19,6 @@ class BasicsConfigs:
             }
             self.Texture = None
             self.GameFolder = os.path.abspath(__file__)
+            
         def ResetTexture(self):
             self.Texture = self.Config[DefaultTexture]

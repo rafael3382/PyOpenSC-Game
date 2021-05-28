@@ -1,19 +1,15 @@
 import numpy
 class 3DArray:
     def __init__(self, XSize, YSize, ZSize):
-        self.3DArray = []
-        for x in range(0, ZSize+1):
-            for y in range(0, YSize+1):
-                for z in range(0, XSize+1):
+        self.3DArray = {}
+
                   
     def __iter__(self):
         return self
     def add(X,Y,Z, Obj):
-        try:
-            self.3DArray[X].append
-        [].
-        self.3DArray[X] = []
-        self.3DArray[X][Y]
+        
+        
+        self.3DArray[X][Y][Z] = 
     def __getitem__(self, item):
         if item >= :
             raise IndexError("CustomRange index out of range")

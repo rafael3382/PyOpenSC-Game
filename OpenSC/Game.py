@@ -1,9 +1,12 @@
 from __future__ import division
-
+import os
 import sys
 import math
 import random
 import time
+
+import WorldFormat_OpenSC as OSCB_Lib
+import Block as Blocks
 
 from collections import deque
 from pyglet import image
@@ -11,8 +14,12 @@ from pyglet.gl import *
 from pyglet.graphics import TextureGroup
 from pyglet.window import key, mouse
 
+
+OSCB = OSCB_Lib.oscworld()
+
+
 TICKS_PER_SEC = 60
-VISIBILITY_RANGE = 120
+VISIBILITY_RANGE = 1024
 
 # Size of sectors used to ease block loading.
 SECTOR_SIZE = 16
@@ -63,26 +70,38 @@ def tex_coord(x, y, n=16):
     return dx, dy, dx + m, dy, dx + m, dy + m, dx, dy + m
 
 
-def tex_coords(top, bottom, side):
+def tex_coords(top, bottom, front, back, right, left):
     """ Return a list of the texture squares for the top, bottom and side.
 
     """
-    top = tex_coord(*top)
-    bottom = tex_coord(*bottom)
-    side = tex_coord(*side)
+    top_coord = tex_coord(*top)
+    bottom_coord = tex_coord(*bottom)
+    right_coord = tex_coord(*right)
+    left_coord = tex_coord(*left)
+    front_coord = tex_coord(*front)
+    back_coord = tex_coord(*back)
+
+    
     result = []
-    result.extend(top)
-    result.extend(bottom)
-    result.extend(side * 4)
+    result.extend(top_coord)
+    result.extend(bottom_coord)
+    result.extend(front_coord)
+    result.extend(back_coord)
+    result.extend(right_coord)
+    result.extend(left_coord)
+    
+    
+    
     return result
 
 
 TEXTURE_PATH = 'appearance/blocks.png'
 
-GRASS = tex_coords((6, 1), (0, 0), (3, 15))
-SAND = tex_coords((1, 1), (1, 1), (1, 1))
-BRICK = tex_coords((2, 0), (2, 0), (2, 0))
-STONE = tex_coords((2, 1), (2, 1), (2, 1))
+AllBlocks = Blocks.AllBlocks()
+AllBlocks.Parse()
+
+
+
 
 FACES = [
     ( 0, 1, 0),
@@ -138,10 +157,11 @@ class Model(object):
 
         # A TextureGroup manages an OpenGL texture.
         self.group = TextureGroup(image.load(TEXTURE_PATH).get_texture())
-
+        
         # A mapping from position to the texture of the block at that position.
         # This defines all the blocks that are currently in the world.
         self.world = {}
+        self.Terrain = {}
 
         # Same mapping as `world` but only contains blocks that are shown.
         self.shown = {}
@@ -162,18 +182,26 @@ class Model(object):
         """ Initialize the world by placing all the blocks.
 
         """
+
+        if os.path.exists("Blocks.oscb"):
+            print("Reading World")
+            OSCB.Read(self)
+            print("Readed")
+        else:
+            OSCB.New("Blocks.oscb")
+        
         n = 80  # 1/2 width and height of world
         s = 1  # step size
         y = 0  # initial y height
         for x in xrange(-n, n + 1, s):
             for z in xrange(-n, n + 1, s):
                 # create a layer stone an grass everywhere.
-                self.add_block((x, y - 2, z), GRASS, immediate=False)
-                self.add_block((x, y - 3, z), STONE, immediate=False)
+                self.add_block((x, y - 2, z), AllBlocks.Search("Grass"), immediate=False)
+                self.add_block((x, y - 3, z), 1, immediate=False)
                 if x in (-n, n) or z in (-n, n):
                     # create outer walls.
                     for dy in xrange(-2, 3):
-                        self.add_block((x, y + dy, z), STONE, immediate=False)
+                        self.add_block((x, y + dy, z), 1, immediate=False)
 
         # generate the hills randomly
         o = n - 10
@@ -184,7 +212,7 @@ class Model(object):
             h = random.randint(1, 6)  # height of the hill
             s = random.randint(4, 8)  # 2 * s is the side length of the hill
             d = 1  # how quickly to taper off the hills
-            t = random.choice([GRASS, SAND, BRICK])
+            t = random.choice([AllBlocks.Search("Grass"), AllBlocks.Search("Granite")])
             for y in xrange(c, c + h):
                 for x in xrange(a - s, a + s + 1):
                     for z in xrange(b - s, b + s + 1):
@@ -233,7 +261,7 @@ class Model(object):
                 return True
         return False
 
-    def add_block(self, position, texture, immediate=True):
+    def add_block(self, position, BlockID, immediate=True):
         """ Add a block with the given `texture` and `position` to the world.
 
         Parameters
@@ -249,7 +277,7 @@ class Model(object):
         """
         if position in self.world:
             self.remove_block(position, immediate)
-        self.world[position] = texture
+        self.world[position] = Blocks.Block(*position, BlockID)
         self.sectors.setdefault(sectorize(position), []).append(position)
         if immediate:
             if self.exposed(position):
@@ -292,7 +320,6 @@ class Model(object):
             else:
                 if key in self.shown:
                     self.hide_block(key)
-
     def show_block(self, position, immediate=True):
         """ Show the block at the given `position`. This method assumes the
         block has already been added with add_block()
@@ -305,7 +332,12 @@ class Model(object):
             Whether or not to show the block immediately.
 
         """
-        texture = self.world[position]
+        if self.world[position].typ3 == 0:
+            return
+        if self.world[position].typ3 > 255:
+            return
+            self.world[position].typ3 = int(self.world[position].typ3)
+        texture = tex_coords(*AllBlocks.GetTexture(self.world[position].typ3))
         self.shown[position] = texture
         if immediate:
             self._show_block(position, texture)
@@ -325,6 +357,8 @@ class Model(object):
 
         """
         x, y, z = position
+        if self.world[position].typ3 == "0":
+            return
 
         
         
@@ -332,6 +366,7 @@ class Model(object):
         texture_data = list(texture)
         # create vertex list
         # FIXME Maybe `add_indexed()` should be used instead
+        
         self._shown[position] = self.batch.add(24, GL_QUADS, self.group,
             ('v3f/static', vertex_data),
             ('t2f/static', texture_data))
@@ -458,7 +493,7 @@ class Window(pyglet.window.Window):
 
         # Current (x, y, z) position in the world, specified with floats. Note
         # that, perhaps unlike in math class, the y-axis is the vertical axis.
-        self.position = (0, 0, 0)
+        self.position = (-144, 256, 352)
 
         # First element is rotation of the player in the x-z plane (ground
         # plane) measured from the z-axis down. The second is the rotation
@@ -478,7 +513,7 @@ class Window(pyglet.window.Window):
         self.dy = 0
 
         # A list of blocks the player can place. Hit num keys to cycle.
-        self.inventory = [BRICK, GRASS, SAND]
+        self.inventory = [AllBlocks.Search("Grass")]
 
         # The current block the user can place. Hit num keys to cycle.
         self.block = self.inventory[0]
@@ -574,6 +609,9 @@ class Window(pyglet.window.Window):
             The change in time since the last call.
 
         """
+        if self.position[1] < -255:
+            self.set_2d()    
+            self.position = [0,0,0]
         self.model.process_queue()
         sector = sectorize(self.position)
         if sector != self.sector:
@@ -687,8 +725,8 @@ class Window(pyglet.window.Window):
                 if previous:
                     self.model.add_block(previous, self.block)
             elif button == pyglet.window.mouse.LEFT and block:
-                texture = self.model.world[block]
-                if texture != STONE:
+                Id = self.model.world[block]
+                if Id != 1:
                     self.model.remove_block(block)
         else:
             self.set_exclusive_mouse(True)
@@ -764,7 +802,8 @@ class Window(pyglet.window.Window):
         elif symbol == key.D:
             self.strafe[1] -= 1
         elif symbol == key.Q:
-            exit()
+            OSCB.Write(self.model.world)
+            #exit()
 
     def on_resize(self, width, height):
         """ Called when the window is resized to a new `width` and `height`.
@@ -888,6 +927,8 @@ def setup():
     # Enable culling (not rendering) of back-facing facets -- facets that aren't
     # visible to you.
     glEnable(GL_CULL_FACE)
+    pyglet.gl.glEnable(pyglet.gl.GL_BLEND)
+    pyglet.gl.glBlendFunc(pyglet.gl.GL_SRC_ALPHA, pyglet.gl.GL_ONE_MINUS_SRC_ALPHA)
     # Set the texture minification/magnification function to GL_NEAREST (nearest
     # in Manhattan distance) to the specified texture coordinates. GL_NEAREST
     # "is generally faster than GL_LINEAR, but it can produce textured images
