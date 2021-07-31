@@ -11,7 +11,7 @@ try:
 except ImportError:
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pyglet"])
-     except CalledProcessError:
+    except CalledProcessError:
          print("Fail, :(")
          print("You must ask for support at SCC #nome-opensc")
          input()
